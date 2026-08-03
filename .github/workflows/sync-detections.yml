@@ -1,0 +1,32 @@
+name: Sync KQL from Detections.ai
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Executes automatically every night at 12:00 AM UTC
+  workflow_dispatch: # Enables a manual run option via the GitHub UI
+
+jobs:
+  sync-queries:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Initialize Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Load Web Parsing Libraries
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run Scraping Pipeline
+        run: python sync_kql.py
+
+      - name: Commit and Push New Detections
+        run: |
+          git config --global user.name "Detection-Sync-Bot"
+          git config --global user.email "actions@github.com"
+          git add KQL/
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated update of Detections.ai KQL queries" && git push)
