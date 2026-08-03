@@ -1,5 +1,6 @@
 import os
 import requests
+import re
 
 # Direct structured data source mirroring the community rules
 UPSTREAM_URL = "https://githubusercontent.com"
@@ -7,6 +8,10 @@ OUTPUT_DIR = "KQL"
 
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
+
+def sanitize_filename(filename):
+    # Remove characters that are invalid in filenames
+    return re.sub(r'[\\/*?:"<>|]', "", filename)
 
 def pull_active_kql_library():
     print("Connecting directly to the upstream community rule database...")
@@ -27,15 +32,19 @@ def pull_active_kql_library():
         if not rule_body:
             continue
             
-        # Extract a clean title from the comment block of the query
+        # Extract a clean title from the comment block of the query safely
         try:
-            first_line = rule_body.split('\n')[0]
+            lines = rule_body.split('\n')
+            first_line = lines[0] # Grab the actual text string from the list
             title = first_line.replace("//", "").strip().lower().replace(" ", "-")
+            title = sanitize_filename(title)
+            if not title:
+                title = f"detection-rule-{index}"
         except Exception:
             title = f"detection-rule-{index}"
             
         # Verify it contains valid KQL structure
-        if "where" in rule_body or "project" in rule_body:
+        if "where" in rule_body or "project" in rule_body or "extend" in rule_body:
             file_name = f"{title}.kql"
             file_path = os.path.join(OUTPUT_DIR, file_name)
             
