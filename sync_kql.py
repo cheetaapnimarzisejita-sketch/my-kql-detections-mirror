@@ -1,44 +1,47 @@
 import os
 import requests
-from bs4 import BeautifulSoup
 
-# Global targets
-BASE_URL = "https://detections.ai"
+# Direct structured data source mirroring the community rules
+UPSTREAM_URL = "https://githubusercontent.com"
 OUTPUT_DIR = "KQL"
 
-# Create the repository folder structure dynamically
 if not os.path.exists(OUTPUT_DIR):
     os.makedirs(OUTPUT_DIR)
 
-def fetch_trending_detections():
-    print("Initiating connection to Detections.ai...")
-    response = requests.get(BASE_URL)
+def pull_active_kql_library():
+    print("Connecting directly to the upstream community rule database...")
+    response = requests.get(UPSTREAM_URL)
+    
     if response.status_code != 200:
-        print(f"Network error: Unable to hit endpoint (Status {response.status_code})")
+        print(f"Connection failed with status code: {response.status_code}")
         return
+
+    # Parse individual KQL rules split by standard documentation dividers
+    raw_content = response.text
+    rules = raw_content.split("// --- NEW RULE --- //")
     
-    soup = BeautifulSoup(response.text, 'html.parser')
+    print(f"Successfully processed database. Found {len(rules)} active rule packages.")
     
-    # Locate all recent cards/elements inside the live tracking layout 
-    rules = soup.find_all('div', class_='rule-card') 
-    print(f"Discovered {len(rules)} prospective logic components to map.")
-    
-    for rule in rules:
-        try:
-            # Reformat string headers into safe file path definitions
-            raw_title = rule.find('h3').text.strip()
-            title = raw_title.replace(" ", "-").replace("/", "-").lower()
-            
-            # Extract raw text from the query block elements
-            kql_content = rule.find('code').text.strip() 
-            
-            if kql_content:
-                file_path = os.path.join(OUTPUT_DIR, f"{title}.kql")
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(kql_content)
-                print(f"Synchronized: {file_path}")
-        except Exception as e:
+    for index, rule_body in enumerate(rules):
+        rule_body = rule_body.strip()
+        if not rule_body:
             continue
+            
+        # Extract a clean title from the comment block of the query
+        try:
+            first_line = rule_body.split('\n')[0]
+            title = first_line.replace("//", "").strip().lower().replace(" ", "-")
+        except Exception:
+            title = f"detection-rule-{index}"
+            
+        # Verify it contains valid KQL structure
+        if "where" in rule_body or "project" in rule_body:
+            file_name = f"{title}.kql"
+            file_path = os.path.join(OUTPUT_DIR, file_name)
+            
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(rule_body)
+            print(f"Synchronized file: {file_path}")
 
 if __name__ == "__main__":
-    fetch_trending_detections()
+    pull_active_kql_library()
