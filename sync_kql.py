@@ -5,7 +5,7 @@ import requests
 UPSTREAM_URL = "https://githubusercontent.com"
 OUTPUT_DIR = "KQL"
 
-# Create directories
+# Create target directories
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def pull_active_kql_library():
@@ -30,7 +30,7 @@ def pull_active_kql_library():
         if not lines:
             continue
             
-        # Extract the clear first comment as name
+        # FIX: Extract the text index item from the array safely
         first_line = lines[0]
         clean_title = first_line.replace("//", "").replace(":", "").replace(" ", "-").strip().lower()
         
@@ -42,7 +42,7 @@ def pull_active_kql_library():
             clean_title = f"detection-rule-{index}"
 
         # Write clean .kql query payloads out
-        if "where" in rule_body or "project" in rule_body or "extend" in rule_body:
+        if any(keyword in rule_body for keyword in ["where", "project", "extend", "take", "summarize"]):
             file_name = f"{clean_title}.kql"
             file_path = os.path.join(OUTPUT_DIR, file_name)
             
