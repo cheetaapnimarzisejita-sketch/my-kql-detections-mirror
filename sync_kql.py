@@ -1,56 +1,55 @@
 import os
 import requests
-import re
 
-# Direct structured data source mirroring the community rules
+# Clean community production stream
 UPSTREAM_URL = "https://githubusercontent.com"
 OUTPUT_DIR = "KQL"
 
-if not os.path.exists(OUTPUT_DIR):
-    os.makedirs(OUTPUT_DIR)
-
-def sanitize_filename(filename):
-    # Remove characters that are invalid in filenames
-    return re.sub(r'[\\/*?:"<>|]', "", filename)
+# Create directories
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def pull_active_kql_library():
     print("Connecting directly to the upstream community rule database...")
-    response = requests.get(UPSTREAM_URL)
+    response = requests.get(UPSTREAM_URL, timeout=30)
     
     if response.status_code != 200:
-        print(f"Connection failed with status code: {response.status_code}")
+        print(f"Connection failed: {response.status_code}")
         return
 
-    # Parse individual KQL rules split by standard documentation dividers
-    raw_content = response.text
-    rules = raw_content.split("// --- NEW RULE --- //")
-    
-    print(f"Successfully processed database. Found {len(rules)} active rule packages.")
+    # Split cleanly by the precise rule dividers used by the system
+    rules = response.text.split("// --- NEW RULE --- //")
+    print(f"Successfully connected. Processing {len(rules)} items.")
     
     for index, rule_body in enumerate(rules):
         rule_body = rule_body.strip()
         if not rule_body:
             continue
             
-        # Extract a clean title from the comment block of the query safely
-        try:
-            lines = rule_body.split('\n')
-            first_line = lines[0] # Grab the actual text string from the list
-            title = first_line.replace("//", "").strip().lower().replace(" ", "-")
-            title = sanitize_filename(title)
-            if not title:
-                title = f"detection-rule-{index}"
-        except Exception:
-            title = f"detection-rule-{index}"
+        # Parse titles line-by-line safely without crashing
+        lines = [line.strip() for line in rule_body.split('\n') if line.strip()]
+        if not lines:
+            continue
             
-        # Verify it contains valid KQL structure
+        # Extract the clear first comment as name
+        first_line = lines[0]
+        clean_title = first_line.replace("//", "").replace(":", "").replace(" ", "-").strip().lower()
+        
+        # Strip windows/linux forbidden filename symbols
+        for char in ['\\', '/', '*', '?', '"', '<', '>', '|', ':']:
+            clean_title = clean_title.replace(char, "")
+            
+        if not clean_title or len(clean_title) < 3:
+            clean_title = f"detection-rule-{index}"
+
+        # Write clean .kql query payloads out
         if "where" in rule_body or "project" in rule_body or "extend" in rule_body:
-            file_name = f"{title}.kql"
+            file_name = f"{clean_title}.kql"
             file_path = os.path.join(OUTPUT_DIR, file_name)
             
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(rule_body)
-            print(f"Synchronized file: {file_path}")
+                
+    print("Process complete! All available queries isolated.")
 
 if __name__ == "__main__":
     pull_active_kql_library()
